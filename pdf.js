@@ -31,6 +31,7 @@ const render = async (page, doc, zoom) => {
     if (doc._textLayer) doc._textLayer.update({ viewport })
     else {
         const container = doc.querySelector('.textLayer')
+        container.replaceChildren()
         const textLayer = new pdfjsLib.TextLayer({
             textContentSource: await page.streamTextContent(),
             container, viewport,
