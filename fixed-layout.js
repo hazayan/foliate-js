@@ -55,6 +55,7 @@ export class FixedLayout extends HTMLElement {
             justify-content: safe center;
             align-items: center;
             overflow: auto;
+            scrollbar-gutter: stable both-edges;
         }`)
 
         this.#observer.observe(this)
@@ -108,7 +109,8 @@ export class FixedLayout extends HTMLElement {
         const left = this.#left ?? {}
         const right = this.#center ?? this.#right ?? {}
         const target = side === 'left' ? left : right
-        const { width, height } = this.getBoundingClientRect()
+        const width = this.clientWidth
+        const height = this.clientHeight
         const portrait = this.spread !== 'both' && this.spread !== 'portrait'
             && height > width
         this.#portrait = portrait
