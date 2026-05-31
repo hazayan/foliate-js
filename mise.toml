@@ -1,0 +1,23 @@
+min_version = "2024.9.5"
+
+[env]
+_.path = ["{{config_root}}/node_modules/.bin"]
+
+[tools]
+node = "lts"
+
+[tasks.install]
+description = "Install JavaScript dependencies"
+run = "npm install"
+
+[tasks.build]
+description = "Build foliate-js bundles"
+run = "npm run build"
+
+[tasks.check]
+description = "Check JavaScript syntax and build foliate-js"
+depends = ["check:js", "build"]
+
+[tasks."check:js"]
+description = "Check JavaScript syntax"
+run = "find . -path './vendor' -prune -o -path './node_modules' -prune -o -name '*.js' -print0 | xargs -0 -n1 node --check"

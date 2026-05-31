@@ -43,6 +43,7 @@ export class FixedLayout extends HTMLElement {
     #center
     #side
     #zoom
+    #appearance
     constructor() {
         super()
 
@@ -76,6 +77,7 @@ export class FixedLayout extends HTMLElement {
         const srcOptionIsString = typeof srcOption === 'string'
         const src = srcOptionIsString ? srcOption : srcOption?.src
         const onZoom = srcOptionIsString ? null : srcOption?.onZoom
+        const onAppearance = srcOptionIsString ? null : srcOption?.onAppearance
         const element = document.createElement('div')
         element.setAttribute('dir', 'ltr')
         const iframe = document.createElement('iframe')
@@ -102,10 +104,16 @@ export class FixedLayout extends HTMLElement {
                     width: parseFloat(width),
                     height: parseFloat(height),
                     onZoom,
+                    onAppearance,
                 })
             }, { once: true })
             iframe.src = src
         })
+    }
+    #applyFrameAppearance(frame) {
+        const { iframe, onAppearance } = frame ?? {}
+        if (iframe && onAppearance)
+            onAppearance({ doc: iframe.contentDocument, appearance: this.#appearance })
     }
     #render(side = this.#side) {
         if (!side) return
@@ -141,7 +149,11 @@ export class FixedLayout extends HTMLElement {
         const transform = frame => {
             let { element, iframe, width, height, blank, onZoom } = frame
             if (!iframe) return
-            if (onZoom) onZoom({ doc: frame.iframe.contentDocument, scale })
+            if (onZoom) onZoom({
+                doc: frame.iframe.contentDocument,
+                scale,
+                appearance: this.#appearance,
+            })
             const iframeScale = onZoom ? scale : 1
             Object.assign(iframe.style, {
                 width: `${width * iframeScale}px`,
@@ -169,6 +181,12 @@ export class FixedLayout extends HTMLElement {
             transform(right)
         }
     }
+    setAppearance(appearance) {
+        this.#appearance = appearance
+        for (const frame of [this.#left, this.#right, this.#center])
+            this.#applyFrameAppearance(frame)
+        this.#render()
+    }
     async #showSpread({ left, right, center, side }) {
         this.#root.replaceChildren()
         this.#left = null
@@ -177,12 +195,15 @@ export class FixedLayout extends HTMLElement {
         if (center) {
             this.#center = await this.#createFrame(center)
             this.#side = 'center'
+            this.#applyFrameAppearance(this.#center)
             this.#render()
         } else {
             this.#left = await this.#createFrame(left)
             this.#right = await this.#createFrame(right)
             this.#side = this.#left.blank ? 'right'
                 : this.#right.blank ? 'left' : side
+            this.#applyFrameAppearance(this.#left)
+            this.#applyFrameAppearance(this.#right)
             this.#render()
         }
     }
