@@ -18,13 +18,6 @@ const getScheme = (doc, appearance) => appearance?.style?.colorScheme
 const getPDFColors = (doc, appearance) => {
     const style = appearance?.style
     if (!style || style.invert) return {}
-    if (style.appliedTheme?.bg && style.appliedTheme?.fg) return {
-        background: style.appliedTheme.bg,
-        pageColors: {
-            background: style.appliedTheme.bg,
-            foreground: style.appliedTheme.fg,
-        },
-    }
     const colors = style.theme?.[getScheme(doc, appearance)]
     if (!colors?.bg || !colors?.fg) return {}
     return {
@@ -32,33 +25,6 @@ const getPDFColors = (doc, appearance) => {
         pageColors: {
             background: colors.bg,
             foreground: colors.fg,
-        },
-    }
-}
-
-const normalizeColor = value => {
-    const match = /^rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([.\d]+))?/.exec(value ?? '')
-    if (!match || match[4] === '0') return null
-    return '#' + match.slice(1, 4)
-        .map(x => Number(x).toString(16).padStart(2, '0')).join('')
-}
-
-const getAppliedColors = (doc, fallback = {}) => {
-    const view = doc?.defaultView
-    if (!view) return fallback
-    const rootStyle = view.getComputedStyle(doc.documentElement)
-    const bodyStyle = doc.body ? view.getComputedStyle(doc.body) : rootStyle
-    const background = normalizeColor(bodyStyle.backgroundColor)
-        ?? normalizeColor(rootStyle.backgroundColor)
-        ?? fallback.background
-    const foreground = normalizeColor(bodyStyle.color)
-        ?? normalizeColor(rootStyle.color)
-        ?? fallback.pageColors?.foreground
-    return {
-        background,
-        pageColors: {
-            background,
-            foreground,
         },
     }
 }
@@ -101,12 +67,7 @@ const applyAppearance = (doc, appearance) => {
     if (!style) return
     style.setProperty('--foliate-pdf-bg', background ?? '')
     style.setProperty('--foliate-pdf-fg', pageColors?.foreground ?? '')
-    if (background) {
-        style.setProperty('background', background, 'important')
-        if (doc.body) doc.body.style.setProperty('background', background, 'important')
-        for (const el of doc.querySelectorAll('#canvas, #canvas canvas'))
-            el.style.setProperty('background', background, 'important')
-    }
+    if (doc.body) doc.body.style.backgroundColor = background ?? ''
 }
 
 const render = async (page, doc, zoom, appearance, isCurrent = () => true) => {
@@ -116,15 +77,13 @@ const render = async (page, doc, zoom, appearance, isCurrent = () => true) => {
     doc.documentElement.style.setProperty('--scale-factor', scale)
     const viewport = page.getViewport({ scale })
     applyAppearance(doc, appearance)
-    const fallbackColors = getPDFColors(doc, appearance)
-    const { background, pageColors } = getAppliedColors(doc, fallbackColors)
+    const { background, pageColors } = getPDFColors(doc, appearance)
 
     // the canvas must be in the `PDFDocument`'s `ownerDocument`
     // (`globalThis.document` by default); that's where the fonts are loaded
     const canvas = document.createElement('canvas')
     canvas.height = viewport.height
     canvas.width = viewport.width
-    if (background) canvas.style.setProperty('background', background, 'important')
     const canvasContext = canvas.getContext('2d')
     await page.render({ canvasContext, viewport, background, pageColors }).promise
     recolorCanvas(canvas, canvasContext, { background, pageColors })

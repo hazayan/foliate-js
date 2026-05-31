@@ -5,4 +5,3 @@
 [00005] [2026-05-31T21:12:00Z] [BUGFIX] Added PDF canvas blend/filter handling so PDFs that paint their own white page rectangle can still follow Foliate reader backgrounds.
 [00006] [2026-05-31T21:30:00Z] [BUGFIX] Replaced CSS-based PDF page blending with direct grayscale canvas recoloring so painted white page backgrounds are transformed into the selected reader background.
 [00007] [2026-05-31T21:46:00Z] [BUGFIX] Made PDF canvas rendering monotonic so stale unthemed renders cannot overwrite later themed renders, and re-rendered existing canvases on appearance changes.
-[00008] [2026-05-31T22:20:00Z] [BUGFIX] Applied the reader's computed foreground/background colors to PDF iframe documents and canvases before PDF.js rendering.
