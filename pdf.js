@@ -29,6 +29,33 @@ const getPDFColors = (doc, appearance) => {
     }
 }
 
+const hexToRGB = hex => {
+    const match = /^#?([0-9a-f]{6})$/i.exec(hex ?? '')
+    if (!match) return null
+    const n = parseInt(match[1], 16)
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
+}
+
+const isDarkColor = color => {
+    const rgb = hexToRGB(color)
+    if (!rgb) return false
+    const [r, g, b] = rgb.map(x => {
+        const v = x / 255
+        return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4
+    })
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b < 0.5
+}
+
+const applyCanvasAppearance = (canvas, background) => {
+    if (!background) return
+    canvas.style.backgroundColor = background
+    if (background === '#ffffff') return
+    if (isDarkColor(background)) {
+        canvas.style.filter = 'invert(1) hue-rotate(180deg)'
+        canvas.style.mixBlendMode = 'screen'
+    } else canvas.style.mixBlendMode = 'multiply'
+}
+
 const applyAppearance = (doc, appearance) => {
     const { background, pageColors } = getPDFColors(doc, appearance)
     const style = doc?.documentElement?.style
@@ -52,9 +79,9 @@ const render = async (page, doc, zoom, appearance) => {
     const canvas = document.createElement('canvas')
     canvas.height = viewport.height
     canvas.width = viewport.width
-    canvas.style.backgroundColor = background ?? ''
     const canvasContext = canvas.getContext('2d')
     await page.render({ canvasContext, viewport, background, pageColors }).promise
+    applyCanvasAppearance(canvas, background)
     doc.querySelector('#canvas').replaceChildren(doc.adoptNode(canvas))
 
     if (doc._textLayer) doc._textLayer.update({ viewport })
