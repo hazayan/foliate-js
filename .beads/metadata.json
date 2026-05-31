@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "foliate_js",
+  "project_id": "a10212ea-db95-44c3-befe-91792257a441"
+}
