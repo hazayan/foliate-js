@@ -12,13 +12,13 @@ const textLayerBuilderCSS = await fetchText(pdfjsPath('text_layer_builder.css'))
 // https://raw.githubusercontent.com/mozilla/pdf.js/refs/tags/v5.5.207/web/annotation_layer_builder.css
 const annotationLayerBuilderCSS = await fetchText(pdfjsPath('annotation_layer_builder.css'))
 
-const getScheme = (doc, appearance) => appearance?.style?.colorScheme
-    ?? (doc?.defaultView?.matchMedia?.('(prefers-color-scheme: dark)')?.matches ? 'dark' : 'light')
+const getScheme = doc => doc?.defaultView
+    ?.matchMedia?.('(prefers-color-scheme: dark)')?.matches ? 'dark' : 'light'
 
 const getPDFColors = (doc, appearance) => {
     const style = appearance?.style
     if (!style || style.invert) return {}
-    const colors = style.theme?.[getScheme(doc, appearance)]
+    const colors = style.theme?.[getScheme(doc)]
     if (!colors?.bg || !colors?.fg) return {}
     return {
         background: colors.bg,
@@ -35,7 +35,6 @@ const applyAppearance = (doc, appearance) => {
     if (!style) return
     style.setProperty('--foliate-pdf-bg', background ?? '')
     style.setProperty('--foliate-pdf-fg', pageColors?.foreground ?? '')
-    if (doc.body) doc.body.style.backgroundColor = background ?? ''
 }
 
 const render = async (page, doc, zoom, appearance) => {
@@ -52,7 +51,6 @@ const render = async (page, doc, zoom, appearance) => {
     const canvas = document.createElement('canvas')
     canvas.height = viewport.height
     canvas.width = viewport.width
-    canvas.style.backgroundColor = background ?? ''
     const canvasContext = canvas.getContext('2d')
     await page.render({ canvasContext, viewport, background, pageColors }).promise
     doc.querySelector('#canvas').replaceChildren(doc.adoptNode(canvas))

@@ -1,4 +1,3 @@
 [00001] [2026-05-31T20:06:19Z] [TROUBLESHOOTING] Reviewed upstream pull requests affecting PDF rendering, fixed-layout behavior, search highlighting, layer reuse, and renderer sizing before local PDF layout work
 [00002] [2026-05-31T20:06:19Z] [IMPLEMENTATION] Folded selected upstream fixes for fixed-layout safe centering, client sizing, paginator null-body guards, PDF layer reuse, fixed-layout respreading, single-column PDFs, and PDF search highlighting
 [00003] [2026-05-31T20:16:17Z] [IMPLEMENTATION] Added mise-managed local build tasks and wired fixed-layout appearance into PDF.js background and pageColors rendering
-[00004] [2026-05-31T20:50:00Z] [BUGFIX] Made PDF theme colors follow Foliate's resolved app color scheme instead of iframe media queries, and explicitly applied the PDF background to the frame and canvas.
