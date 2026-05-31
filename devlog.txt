@@ -3,4 +3,3 @@
 [00003] [2026-05-31T20:16:17Z] [IMPLEMENTATION] Added mise-managed local build tasks and wired fixed-layout appearance into PDF.js background and pageColors rendering
 [00004] [2026-05-31T20:50:00Z] [BUGFIX] Made PDF theme colors follow Foliate's resolved app color scheme instead of iframe media queries, and explicitly applied the PDF background to the frame and canvas.
 [00005] [2026-05-31T21:12:00Z] [BUGFIX] Added PDF canvas blend/filter handling so PDFs that paint their own white page rectangle can still follow Foliate reader backgrounds.
-[00006] [2026-05-31T21:30:00Z] [BUGFIX] Replaced CSS-based PDF page blending with direct grayscale canvas recoloring so painted white page backgrounds are transformed into the selected reader background.
