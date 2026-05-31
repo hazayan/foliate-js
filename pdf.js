@@ -70,7 +70,7 @@ const applyAppearance = (doc, appearance) => {
     if (doc.body) doc.body.style.backgroundColor = background ?? ''
 }
 
-const render = async (page, doc, zoom, appearance, isCurrent = () => true) => {
+const render = async (page, doc, zoom, appearance) => {
     const scale = zoom * devicePixelRatio
     doc.documentElement.style.transform = `scale(${1 / devicePixelRatio})`
     doc.documentElement.style.transformOrigin = 'top left'
@@ -87,7 +87,6 @@ const render = async (page, doc, zoom, appearance, isCurrent = () => true) => {
     const canvasContext = canvas.getContext('2d')
     await page.render({ canvasContext, viewport, background, pageColors }).promise
     recolorCanvas(canvas, canvasContext, { background, pageColors })
-    if (!isCurrent()) return
     doc.querySelector('#canvas').replaceChildren(doc.adoptNode(canvas))
 
     if (doc._textLayer) doc._textLayer.update({ viewport })
@@ -175,21 +174,8 @@ const renderPage = async (page, getImageBlob) => {
         <div class="textLayer"></div>
         <div class="annotationLayer"></div>
     `], { type: 'text/html' }))
-    let renderID = 0
-    let lastScale = 1
-    const onZoom = ({ doc, scale, appearance }) => {
-        lastScale = scale
-        const id = ++renderID
-        return render(page, doc, scale, appearance, () => id === renderID)
-    }
-    const onAppearance = ({ doc, appearance }) => {
-        applyAppearance(doc, appearance)
-        if (doc.querySelector('#canvas canvas')) return onZoom({
-            doc,
-            scale: lastScale,
-            appearance,
-        })
-    }
+    const onZoom = ({ doc, scale, appearance }) => render(page, doc, scale, appearance)
+    const onAppearance = ({ doc, appearance }) => applyAppearance(doc, appearance)
     return { src, onZoom, onAppearance }
 }
 
