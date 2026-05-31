@@ -12,39 +12,12 @@ const textLayerBuilderCSS = await fetchText(pdfjsPath('text_layer_builder.css'))
 // https://raw.githubusercontent.com/mozilla/pdf.js/refs/tags/v5.5.207/web/annotation_layer_builder.css
 const annotationLayerBuilderCSS = await fetchText(pdfjsPath('annotation_layer_builder.css'))
 
-const getScheme = doc => doc?.defaultView
-    ?.matchMedia?.('(prefers-color-scheme: dark)')?.matches ? 'dark' : 'light'
-
-const getPDFColors = (doc, appearance) => {
-    const style = appearance?.style
-    if (!style || style.invert) return {}
-    const colors = style.theme?.[getScheme(doc)]
-    if (!colors?.bg || !colors?.fg) return {}
-    return {
-        background: colors.bg,
-        pageColors: {
-            background: colors.bg,
-            foreground: colors.fg,
-        },
-    }
-}
-
-const applyAppearance = (doc, appearance) => {
-    const { background, pageColors } = getPDFColors(doc, appearance)
-    const style = doc?.documentElement?.style
-    if (!style) return
-    style.setProperty('--foliate-pdf-bg', background ?? '')
-    style.setProperty('--foliate-pdf-fg', pageColors?.foreground ?? '')
-}
-
-const render = async (page, doc, zoom, appearance) => {
+const render = async (page, doc, zoom) => {
     const scale = zoom * devicePixelRatio
     doc.documentElement.style.transform = `scale(${1 / devicePixelRatio})`
     doc.documentElement.style.transformOrigin = 'top left'
     doc.documentElement.style.setProperty('--scale-factor', scale)
     const viewport = page.getViewport({ scale })
-    applyAppearance(doc, appearance)
-    const { background, pageColors } = getPDFColors(doc, appearance)
 
     // the canvas must be in the `PDFDocument`'s `ownerDocument`
     // (`globalThis.document` by default); that's where the fonts are loaded
@@ -52,7 +25,7 @@ const render = async (page, doc, zoom, appearance) => {
     canvas.height = viewport.height
     canvas.width = viewport.width
     const canvasContext = canvas.getContext('2d')
-    await page.render({ canvasContext, viewport, background, pageColors }).promise
+    await page.render({ canvasContext, viewport }).promise
     doc.querySelector('#canvas').replaceChildren(doc.adoptNode(canvas))
 
     if (doc._textLayer) doc._textLayer.update({ viewport })
@@ -121,8 +94,6 @@ const renderPage = async (page, getImageBlob) => {
         html, body {
             margin: 0;
             padding: 0;
-            background: var(--foliate-pdf-bg, transparent);
-            color: var(--foliate-pdf-fg, CanvasText);
         }
         /*
         https://github.com/mozilla/pdf.js/commit/bd05b255fabfc313b194bfe9a17ccded4d90fb5a
@@ -140,9 +111,8 @@ const renderPage = async (page, getImageBlob) => {
         <div class="textLayer"></div>
         <div class="annotationLayer"></div>
     `], { type: 'text/html' }))
-    const onZoom = ({ doc, scale, appearance }) => render(page, doc, scale, appearance)
-    const onAppearance = ({ doc, appearance }) => applyAppearance(doc, appearance)
-    return { src, onZoom, onAppearance }
+    const onZoom = ({ doc, scale }) => render(page, doc, scale)
+    return { src, onZoom }
 }
 
 const makeTOCItem = item => ({
