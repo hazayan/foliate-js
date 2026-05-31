@@ -12,12 +12,34 @@ const textLayerBuilderCSS = await fetchText(pdfjsPath('text_layer_builder.css'))
 // https://raw.githubusercontent.com/mozilla/pdf.js/refs/tags/v5.5.207/web/annotation_layer_builder.css
 const annotationLayerBuilderCSS = await fetchText(pdfjsPath('annotation_layer_builder.css'))
 
-const render = async (page, doc, zoom) => {
+const getPageColors = appearance => {
+    const { style } = appearance ?? {}
+    const { theme, colorScheme } = style ?? {}
+    const palette = colorScheme === 'dark'
+        ? (style?.invert ? theme?.inverted : theme?.dark)
+        : theme?.light
+    const background = palette?.bg
+    const foreground = palette?.fg
+    if (!background || !foreground) return {}
+    if (background === '#ffffff' && foreground === '#000000') return {}
+    return {
+        background,
+        pageColors: { background, foreground },
+    }
+}
+
+const render = async (page, doc, zoom, appearance) => {
     const scale = zoom * devicePixelRatio
     doc.documentElement.style.transform = `scale(${1 / devicePixelRatio})`
     doc.documentElement.style.transformOrigin = 'top left'
     doc.documentElement.style.setProperty('--scale-factor', scale)
     const viewport = page.getViewport({ scale })
+    const colors = getPageColors(appearance)
+    const { background, pageColors } = colors
+    if (background) {
+        doc.documentElement.style.background = background
+        doc.body.style.background = background
+    }
 
     // the canvas must be in the `PDFDocument`'s `ownerDocument`
     // (`globalThis.document` by default); that's where the fonts are loaded
@@ -25,7 +47,7 @@ const render = async (page, doc, zoom) => {
     canvas.height = viewport.height
     canvas.width = viewport.width
     const canvasContext = canvas.getContext('2d')
-    await page.render({ canvasContext, viewport }).promise
+    await page.render({ canvasContext, viewport, background, pageColors }).promise
     doc.querySelector('#canvas').replaceChildren(doc.adoptNode(canvas))
 
     if (doc._textLayer) doc._textLayer.update({ viewport })
@@ -94,6 +116,7 @@ const renderPage = async (page, getImageBlob) => {
         html, body {
             margin: 0;
             padding: 0;
+            background: transparent;
         }
         /*
         https://github.com/mozilla/pdf.js/commit/bd05b255fabfc313b194bfe9a17ccded4d90fb5a
@@ -111,7 +134,7 @@ const renderPage = async (page, getImageBlob) => {
         <div class="textLayer"></div>
         <div class="annotationLayer"></div>
     `], { type: 'text/html' }))
-    const onZoom = ({ doc, scale }) => render(page, doc, scale)
+    const onZoom = ({ doc, scale, appearance }) => render(page, doc, scale, appearance)
     return { src, onZoom }
 }
 

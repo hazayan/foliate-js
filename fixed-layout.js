@@ -43,6 +43,7 @@ export class FixedLayout extends HTMLElement {
     #center
     #side
     #zoom
+    #appearance
     constructor() {
         super()
 
@@ -141,7 +142,11 @@ export class FixedLayout extends HTMLElement {
         const transform = frame => {
             let { element, iframe, width, height, blank, onZoom } = frame
             if (!iframe) return
-            if (onZoom) onZoom({ doc: frame.iframe.contentDocument, scale })
+            if (onZoom) onZoom({
+                doc: frame.iframe.contentDocument,
+                scale,
+                appearance: this.#appearance,
+            })
             const iframeScale = onZoom ? scale : 1
             Object.assign(iframe.style, {
                 width: `${width * iframeScale}px`,
@@ -259,6 +264,10 @@ export class FixedLayout extends HTMLElement {
             this.#index = -1
             return this.goToSpread(target.index, target.side, 'page')
         }
+    }
+    setAppearance(appearance) {
+        this.#appearance = appearance
+        this.#render()
     }
     get index() {
         const spread = this.#spreads[this.#index]
