@@ -36,24 +36,29 @@ const hexToRGB = hex => {
     return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
 }
 
-const isDarkColor = color => {
-    const rgb = hexToRGB(color)
-    if (!rgb) return false
-    const [r, g, b] = rgb.map(x => {
-        const v = x / 255
-        return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4
-    })
-    return 0.2126 * r + 0.7152 * g + 0.0722 * b < 0.5
-}
+const mix = (fg, bg, t) => Math.round(fg + (bg - fg) * t)
 
-const applyCanvasAppearance = (canvas, background) => {
-    if (!background) return
-    canvas.style.backgroundColor = background
-    if (background === '#ffffff') return
-    if (isDarkColor(background)) {
-        canvas.style.filter = 'invert(1) hue-rotate(180deg)'
-        canvas.style.mixBlendMode = 'screen'
-    } else canvas.style.mixBlendMode = 'multiply'
+const recolorCanvas = (canvas, context, colors) => {
+    const bg = hexToRGB(colors?.background)
+    const fg = hexToRGB(colors?.pageColors?.foreground)
+    if (!bg || !fg || colors.background === '#ffffff') return
+
+    const image = context.getImageData(0, 0, canvas.width, canvas.height)
+    const { data } = image
+    for (let i = 0; i < data.length; i += 4) {
+        const r = data[i]
+        const g = data[i + 1]
+        const b = data[i + 2]
+        const max = Math.max(r, g, b)
+        const min = Math.min(r, g, b)
+        const saturation = max - min
+        const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255
+        if (saturation > 32 && luminance < 0.95) continue
+        data[i] = mix(fg[0], bg[0], luminance)
+        data[i + 1] = mix(fg[1], bg[1], luminance)
+        data[i + 2] = mix(fg[2], bg[2], luminance)
+    }
+    context.putImageData(image, 0, 0)
 }
 
 const applyAppearance = (doc, appearance) => {
@@ -81,7 +86,7 @@ const render = async (page, doc, zoom, appearance) => {
     canvas.width = viewport.width
     const canvasContext = canvas.getContext('2d')
     await page.render({ canvasContext, viewport, background, pageColors }).promise
-    applyCanvasAppearance(canvas, background)
+    recolorCanvas(canvas, canvasContext, { background, pageColors })
     doc.querySelector('#canvas').replaceChildren(doc.adoptNode(canvas))
 
     if (doc._textLayer) doc._textLayer.update({ viewport })
