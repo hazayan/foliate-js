@@ -47,6 +47,24 @@ export class FixedLayout extends HTMLElement {
     #appearance
     #scrolledFrames
     #scrolledToken
+    #unloadFrame(frame) {
+        if (!frame || frame.blank) return
+        frame.iframe?.removeAttribute('src')
+        this.book?.sections?.[frame.index]?.unload?.()
+    }
+    #unloadFrames() {
+        if (this.#scrolledFrames) {
+            for (const frame of this.#scrolledFrames) this.#unloadFrame(frame)
+        } else {
+            this.#unloadFrame(this.#left)
+            this.#unloadFrame(this.#right)
+            this.#unloadFrame(this.#center)
+        }
+        this.#left = null
+        this.#right = null
+        this.#center = null
+        this.#scrolledFrames = null
+    }
     constructor() {
         super()
 
@@ -230,16 +248,23 @@ export class FixedLayout extends HTMLElement {
         }
         const token = Symbol()
         this.#scrolledToken = token
+        this.#unloadFrames()
         this.#root.replaceChildren()
         const frames = []
         for (let index = 0; index < this.book.sections.length; index++) {
-            if (this.#scrolledToken !== token) return
+            if (this.#scrolledToken !== token) {
+                for (const frame of frames) this.#unloadFrame(frame)
+                return
+            }
             const section = this.book.sections[index]
             const src = await section.load?.()
             const frame = await this.#createFrame({ index, src })
             frames.push({ ...frame, index })
         }
-        if (this.#scrolledToken !== token) return
+        if (this.#scrolledToken !== token) {
+            for (const frame of frames) this.#unloadFrame(frame)
+            return
+        }
         this.#scrolledFrames = frames
         this.#index = 0
         this.#renderScrolled()
@@ -247,11 +272,8 @@ export class FixedLayout extends HTMLElement {
     }
     async #showSpread({ left, right, center, side }) {
         this.#scrolledToken = null
-        this.#scrolledFrames = null
+        this.#unloadFrames()
         this.#root.replaceChildren()
-        this.#left = null
-        this.#right = null
-        this.#center = null
         if (center) {
             this.#center = await this.#createFrame(center)
             this.#side = 'center'
@@ -447,6 +469,10 @@ export class FixedLayout extends HTMLElement {
     }
     destroy() {
         this.#observer.unobserve(this)
+        this.#scrolledToken = null
+        this.#unloadFrames()
+        this.#root.replaceChildren()
+        this.book = null
     }
 }
 

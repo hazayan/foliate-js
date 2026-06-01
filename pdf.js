@@ -252,6 +252,12 @@ export const makePDF = async file => {
             cache.set(i, url)
             return url
         },
+        unload: () => {
+            const cached = cache.get(i)
+            if (!cached) return
+            URL.revokeObjectURL(cached.src ?? cached)
+            cache.delete(i)
+        },
         createDocument: async () => {
             const page = await pdf.getPage(i + 1)
             const doc = document.implementation.createHTMLDocument()
@@ -290,6 +296,9 @@ export const makePDF = async file => {
     }
     book.getTOCFragment = doc => doc.documentElement
     book.getCover = async () => renderPage(await pdf.getPage(1), true)
-    book.destroy = () => pdf.destroy()
+    book.destroy = () => {
+        for (const section of book.sections) section.unload?.()
+        pdf.destroy()
+    }
     return book
 }

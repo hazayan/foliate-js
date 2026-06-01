@@ -297,6 +297,9 @@ export class View extends HTMLElement {
     close() {
         this.renderer?.destroy()
         this.renderer?.remove()
+        this.renderer = null
+        this.book?.destroy?.()
+        this.book = null
         this.#sectionProgress = null
         this.#tocProgress = null
         this.#pageProgress = null
