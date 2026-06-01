@@ -86,12 +86,25 @@ const shouldRecolorWhitePage = (canvas, context) => {
     return white >= Math.ceil(samples.length * 0.75)
 }
 
+const blendWhitePage = (canvas, background) => {
+    const context = canvas.getContext('2d')
+    context.save()
+    context.globalCompositeOperation = 'darken'
+    context.fillStyle = background
+    context.fillRect(0, 0, canvas.width, canvas.height)
+    context.restore()
+}
+
 const recolorWhitePage = async (canvas, background, isCurrent) => {
     if (!background || background === '#ffffff') return
     const rgb = cssColorToRGB(background)
     if (!rgb) return
 
     await nextFrame()
+    await nextFrame()
+    if (!isCurrent()) return
+
+    blendWhitePage(canvas, background)
     await nextFrame()
     if (!isCurrent()) return
 
