@@ -59,28 +59,63 @@ const cssColorToRGB = color => {
     return normalized.match(/\d+/g)?.slice(0, 3).map(Number)
 }
 
-const recolorWhitePage = (canvas, background) => {
+const nextFrame = () => new Promise(resolve => requestAnimationFrame(resolve))
+
+const isNearWhite = (data, offset = 0) =>
+    data[offset + 3] && data[offset] >= 245 && data[offset + 1] >= 245 && data[offset + 2] >= 245
+
+const shouldRecolorWhitePage = (canvas, context) => {
+    const { width, height } = canvas
+    if (!width || !height) return false
+
+    const samples = [
+        [0.08, 0.08], [0.5, 0.08], [0.92, 0.08],
+        [0.08, 0.5], [0.92, 0.5],
+        [0.08, 0.92], [0.5, 0.92], [0.92, 0.92],
+    ]
+    let white = 0
+    for (const [x, y] of samples) {
+        const px = Math.min(width - 1, Math.max(0, Math.floor(width * x)))
+        const py = Math.min(height - 1, Math.max(0, Math.floor(height * y)))
+        try {
+            if (isNearWhite(context.getImageData(px, py, 1, 1).data)) white++
+        } catch {
+            return false
+        }
+    }
+    return white >= Math.ceil(samples.length * 0.75)
+}
+
+const recolorWhitePage = async (canvas, background, isCurrent) => {
     if (!background || background === '#ffffff') return
     const rgb = cssColorToRGB(background)
     if (!rgb) return
 
+    await nextFrame()
+    await nextFrame()
+    if (!isCurrent()) return
+
     const context = canvas.getContext('2d', { willReadFrequently: true })
-    const image = context.getImageData(0, 0, canvas.width, canvas.height)
-    const data = image.data
-    let changed = false
-    for (let i = 0; i < data.length; i += 4) {
-        const r = data[i]
-        const g = data[i + 1]
-        const b = data[i + 2]
-        const a = data[i + 3]
-        if (a && r >= 245 && g >= 245 && b >= 245) {
-            data[i] = rgb[0]
-            data[i + 1] = rgb[1]
-            data[i + 2] = rgb[2]
-            changed = true
+    if (!shouldRecolorWhitePage(canvas, context)) return
+
+    const rowsPerBatch = 128
+    for (let y = 0; y < canvas.height; y += rowsPerBatch) {
+        if (!isCurrent()) return
+        const height = Math.min(rowsPerBatch, canvas.height - y)
+        const image = context.getImageData(0, y, canvas.width, height)
+        const data = image.data
+        let changed = false
+        for (let i = 0; i < data.length; i += 4) {
+            if (isNearWhite(data, i)) {
+                data[i] = rgb[0]
+                data[i + 1] = rgb[1]
+                data[i + 2] = rgb[2]
+                changed = true
+            }
         }
+        if (changed) context.putImageData(image, 0, y)
+        await nextFrame()
     }
-    if (changed) context.putImageData(image, 0, 0)
 }
 
 const render = async (page, doc, zoom, appearance) => {
@@ -101,11 +136,11 @@ const render = async (page, doc, zoom, appearance) => {
     const canvasContext = canvas.getContext('2d')
     await page.render({ canvasContext, viewport, background, pageColors }).promise
     if (doc._pdfRenderKey !== renderKey) return
-    recolorWhitePage(canvas, background)
     canvas.style.background = background ?? ''
     const canvasHost = doc.querySelector('#canvas')
     if (background) canvasHost.style.background = background
     canvasHost.replaceChildren(doc.adoptNode(canvas))
+    void recolorWhitePage(canvas, background, () => doc._pdfRenderKey === renderKey && canvas.isConnected)
 
     if (doc._textLayer) doc._textLayer.update({ viewport })
     else {

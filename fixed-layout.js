@@ -29,6 +29,8 @@ const getViewport = (doc, viewport) => {
     return { width: 1000, height: 2000 }
 }
 
+const yieldToUI = () => new Promise(resolve => setTimeout(resolve, 0))
+
 export class FixedLayout extends HTMLElement {
     static observedAttributes = ['flow', 'zoom', 'max-column-count']
     #root = this.attachShadow({ mode: 'closed' })
@@ -47,6 +49,7 @@ export class FixedLayout extends HTMLElement {
     #appearance
     #scrolledFrames
     #scrolledToken
+    #scrolledBuild
     #unloadFrame(frame) {
         if (!frame || frame.blank) return
         frame.iframe?.removeAttribute('src')
@@ -64,6 +67,7 @@ export class FixedLayout extends HTMLElement {
         this.#right = null
         this.#center = null
         this.#scrolledFrames = null
+        this.#scrolledBuild = null
     }
     constructor() {
         super()
@@ -241,34 +245,66 @@ export class FixedLayout extends HTMLElement {
             this.#transformFrame(frame, scale)
         }
     }
-    async #showScrolled() {
+    async #showScrolled(targetIndex = 0) {
         if (!this.book || this.#scrolledFrames) {
             this.#renderScrolled()
-            return
+            let frame = this.#scrolledFrames?.find(frame => frame.index === targetIndex)
+            while (!frame && this.#scrolledBuild) {
+                await yieldToUI()
+                frame = this.#scrolledFrames?.find(frame => frame.index === targetIndex)
+            }
+            return frame
         }
         const token = Symbol()
         this.#scrolledToken = token
         this.#unloadFrames()
         this.#root.replaceChildren()
         const frames = []
-        for (let index = 0; index < this.book.sections.length; index++) {
+        this.#scrolledFrames = frames
+
+        let resolveTarget
+        const targetReady = new Promise(resolve => {
+            resolveTarget = resolve
+        })
+        const build = (async () => {
+            let targetResolved = false
+            for (let index = 0; index < this.book.sections.length; index++) {
+                if (this.#scrolledToken !== token) {
+                    for (const frame of frames) this.#unloadFrame(frame)
+                    return
+                }
+                const section = this.book.sections[index]
+                const src = await section.load?.()
+                const frame = { ...await this.#createFrame({ index, src }), index }
+                frames.push(frame)
+
+                if (index === 0) {
+                    this.#index = 0
+                    this.#renderScrolled()
+                    this.#reportScrolledLocation()
+                } else this.#transformFrame(frame, this.#getScale(
+                    frame,
+                    Math.max(1, this.clientWidth - 32),
+                    this.clientHeight))
+
+                if (index === targetIndex) {
+                    targetResolved = true
+                    resolveTarget(frame)
+                }
+                await yieldToUI()
+            }
             if (this.#scrolledToken !== token) {
                 for (const frame of frames) this.#unloadFrame(frame)
                 return
             }
-            const section = this.book.sections[index]
-            const src = await section.load?.()
-            const frame = await this.#createFrame({ index, src })
-            frames.push({ ...frame, index })
-        }
-        if (this.#scrolledToken !== token) {
-            for (const frame of frames) this.#unloadFrame(frame)
-            return
-        }
-        this.#scrolledFrames = frames
-        this.#index = 0
-        this.#renderScrolled()
-        this.#reportScrolledLocation()
+            if (!targetResolved) resolveTarget(frames[0])
+            this.#renderScrolled()
+            this.#reportScrolledLocation()
+        })()
+        this.#scrolledBuild = build.finally(() => {
+            if (this.#scrolledToken === token) this.#scrolledBuild = null
+        })
+        return targetReady
     }
     async #showSpread({ left, right, center, side }) {
         this.#scrolledToken = null
@@ -415,8 +451,7 @@ export class FixedLayout extends HTMLElement {
         const section = book.sections[resolved.index]
         if (!section) return
         if (this.scrolled) {
-            await this.#showScrolled()
-            const frame = this.#scrolledFrames?.find(frame => frame.index === resolved.index)
+            const frame = await this.#showScrolled(resolved.index)
             frame?.element.scrollIntoView({ block: 'start' })
             this.#reportScrolledLocation()
             return
