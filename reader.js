@@ -64,6 +64,9 @@ const formatContributor = contributor => Array.isArray(contributor)
 
 class Reader {
     #tocView
+    #coverURL
+    #abortController
+    #openToken
     style = {
         spacing: 1.4,
         justify: true,
@@ -104,6 +107,10 @@ class Reader {
         menu.groups.layout.select('paginated')
     }
     async open(file) {
+        this.close()
+        const token = Symbol()
+        this.#openToken = token
+        this.#abortController = new AbortController()
         this.view = document.createElement('foliate-view')
         document.body.append(this.view)
         await this.view.open(file)
@@ -135,14 +142,19 @@ class Reader {
             $('#tick-marks').append(option)
         }
 
-        document.addEventListener('keydown', this.#handleKeydown.bind(this))
+        document.addEventListener('keydown', this.#handleKeydown.bind(this), {
+            signal: this.#abortController.signal,
+        })
 
         const title = formatLanguageMap(book.metadata?.title) || 'Untitled Book'
         document.title = title
         $('#side-bar-title').innerText = title
         $('#side-bar-author').innerText = formatContributor(book.metadata?.author)
-        Promise.resolve(book.getCover?.())?.then(blob =>
-            blob ? $('#side-bar-cover').src = URL.createObjectURL(blob) : null)
+        Promise.resolve(book.getCover?.())?.then(blob => {
+            if (!blob || this.#openToken !== token) return
+            this.#coverURL = URL.createObjectURL(blob)
+            $('#side-bar-cover').src = this.#coverURL
+        })
 
         const toc = book.toc
         if (toc) {
@@ -186,6 +198,22 @@ class Reader {
             })
         }
     }
+    close() {
+        this.#abortController?.abort()
+        this.#abortController = null
+        this.#openToken = null
+        if (this.#coverURL) {
+            URL.revokeObjectURL(this.#coverURL)
+            this.#coverURL = null
+            $('#side-bar-cover').removeAttribute('src')
+        }
+        this.view?.close()
+        this.view?.remove()
+        this.view = null
+        this.#tocView?.element?.remove()
+        this.#tocView = null
+        $('#tick-marks').replaceChildren()
+    }
     #handleKeydown(event) {
         const k = event.key
         if (k === 'ArrowLeft' || k === 'h') this.view.goLeft()
@@ -209,9 +237,8 @@ class Reader {
 }
 
 const open = async file => {
-    document.body.removeChild($('#drop-target'))
-    const reader = new Reader()
-    globalThis.reader = reader
+    $('#drop-target')?.remove()
+    const reader = globalThis.reader ??= new Reader()
     await reader.open(file)
 }
 
@@ -237,3 +264,5 @@ const params = new URLSearchParams(location.search)
 const url = params.get('url')
 if (url) open(url).catch(e => console.error(e))
 else dropTarget.style.visibility = 'visible'
+
+globalThis.addEventListener('pagehide', () => globalThis.reader?.close?.())

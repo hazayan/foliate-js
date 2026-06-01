@@ -5,3 +5,4 @@
 [00005] [2026-06-01T13:05:00Z] [BUGFIX] Reapplied PDF theme backgrounds to iframe, canvas host, and rendered canvas on each render pass, discarded stale render completions, and restored conservative white-page recoloring for PDFs that paint their own page background.
 [00006] [2026-06-01T13:25:00Z] [IMPLEMENTATION] Added fixed-layout scrolled flow support so PDF continuous scroll lays pages vertically instead of ignoring the reader flow setting.
 [00007] [2026-06-01T14:45:00Z] [BUGFIX] Added explicit PDF and fixed-layout cleanup so page object URLs, rendered frames, and pdf.js documents are released when switching books or closing a reader.
+[00008] [2026-06-01T15:00:00Z] [BUGFIX] Deepened memory cleanup across reading workflows by tearing down paginator iframes, aborting standalone-reader listeners, revoking standalone cover URLs, and preventing stale cover updates after book switches.

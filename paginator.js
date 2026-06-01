@@ -416,7 +416,12 @@ class View {
         return this.#overlayer
     }
     destroy() {
-        if (this.document) this.#observer.unobserve(this.document.body)
+        this.#observer.disconnect()
+        this.#contentRange.detach?.()
+        this.#overlayer?.element?.remove()
+        this.#overlayer = null
+        this.#iframe.removeAttribute('src')
+        this.#element.replaceChildren()
     }
 }
 
@@ -1119,11 +1124,13 @@ export class Paginator extends HTMLElement {
         this.#view.document.defaultView.focus()
     }
     destroy() {
-        this.#observer.unobserve(this)
-        this.#view.destroy()
+        this.#observer.disconnect()
+        this.#view?.destroy()
         this.#view = null
         this.sections[this.#index]?.unload?.()
         this.#mediaQuery.removeEventListener('change', this.#mediaQueryListener)
+        this.#root.replaceChildren()
+        this.sections = null
     }
 }
 
