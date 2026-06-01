@@ -1,3 +1,4 @@
 [00001] [2026-05-31T20:06:19Z] [TROUBLESHOOTING] Reviewed upstream pull requests affecting PDF rendering, fixed-layout behavior, search highlighting, layer reuse, and renderer sizing before local PDF layout work
 [00002] [2026-05-31T20:06:19Z] [IMPLEMENTATION] Folded selected upstream fixes for fixed-layout safe centering, client sizing, paginator null-body guards, PDF layer reuse, fixed-layout respreading, single-column PDFs, and PDF search highlighting
 [00003] [2026-05-31T23:50:00Z] [BUGFIX] Reworked PDF theme backgrounds through PDF.js render parameters instead of post-processing rendered canvases.
+[00004] [2026-06-01T00:10:00Z] [IMPLEMENTATION] Marked PDF books explicitly so the host reader can apply PDF-only fixed-layout behavior.
