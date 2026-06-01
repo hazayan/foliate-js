@@ -28,18 +28,70 @@ const getPageColors = appearance => {
     }
 }
 
+const applyAppearance = (doc, appearance) => {
+    const colors = getPageColors(appearance)
+    const { background, pageColors } = colors
+    if (!background) return colors
+    const foreground = pageColors?.foreground
+    for (const element of [
+        doc.documentElement,
+        doc.body,
+        doc.querySelector('#canvas'),
+    ].filter(Boolean)) {
+        element.style.background = background
+        if (foreground) element.style.color = foreground
+    }
+    doc.documentElement.style.setProperty('--pdf-page-background', background)
+    if (foreground) doc.documentElement.style.setProperty('--pdf-page-foreground', foreground)
+    return colors
+}
+
+const cssColorToRGB = color => {
+    const context = document.createElement('canvas').getContext('2d')
+    context.fillStyle = color
+    const normalized = context.fillStyle
+    if (normalized.startsWith('#')) {
+        const hex = normalized.slice(1)
+        const step = hex.length === 3 ? 1 : 2
+        const expand = x => step === 1 ? x + x : x
+        return [0, step, step * 2].map(i => parseInt(expand(hex.slice(i, i + step)), 16))
+    }
+    return normalized.match(/\d+/g)?.slice(0, 3).map(Number)
+}
+
+const recolorWhitePage = (canvas, background) => {
+    if (!background || background === '#ffffff') return
+    const rgb = cssColorToRGB(background)
+    if (!rgb) return
+
+    const context = canvas.getContext('2d', { willReadFrequently: true })
+    const image = context.getImageData(0, 0, canvas.width, canvas.height)
+    const data = image.data
+    let changed = false
+    for (let i = 0; i < data.length; i += 4) {
+        const r = data[i]
+        const g = data[i + 1]
+        const b = data[i + 2]
+        const a = data[i + 3]
+        if (a && r >= 245 && g >= 245 && b >= 245) {
+            data[i] = rgb[0]
+            data[i + 1] = rgb[1]
+            data[i + 2] = rgb[2]
+            changed = true
+        }
+    }
+    if (changed) context.putImageData(image, 0, 0)
+}
+
 const render = async (page, doc, zoom, appearance) => {
+    const renderKey = Symbol()
+    doc._pdfRenderKey = renderKey
     const scale = zoom * devicePixelRatio
     doc.documentElement.style.transform = `scale(${1 / devicePixelRatio})`
     doc.documentElement.style.transformOrigin = 'top left'
     doc.documentElement.style.setProperty('--scale-factor', scale)
     const viewport = page.getViewport({ scale })
-    const colors = getPageColors(appearance)
-    const { background, pageColors } = colors
-    if (background) {
-        doc.documentElement.style.background = background
-        doc.body.style.background = background
-    }
+    const { background, pageColors } = applyAppearance(doc, appearance)
 
     // the canvas must be in the `PDFDocument`'s `ownerDocument`
     // (`globalThis.document` by default); that's where the fonts are loaded
@@ -48,7 +100,12 @@ const render = async (page, doc, zoom, appearance) => {
     canvas.width = viewport.width
     const canvasContext = canvas.getContext('2d')
     await page.render({ canvasContext, viewport, background, pageColors }).promise
-    doc.querySelector('#canvas').replaceChildren(doc.adoptNode(canvas))
+    if (doc._pdfRenderKey !== renderKey) return
+    recolorWhitePage(canvas, background)
+    canvas.style.background = background ?? ''
+    const canvasHost = doc.querySelector('#canvas')
+    if (background) canvasHost.style.background = background
+    canvasHost.replaceChildren(doc.adoptNode(canvas))
 
     if (doc._textLayer) doc._textLayer.update({ viewport })
     else {
@@ -116,7 +173,14 @@ const renderPage = async (page, getImageBlob) => {
         html, body {
             margin: 0;
             padding: 0;
-            background: transparent;
+            background: var(--pdf-page-background, transparent);
+            color: var(--pdf-page-foreground, CanvasText);
+        }
+        #canvas {
+            background: var(--pdf-page-background, transparent);
+        }
+        #canvas canvas {
+            display: block;
         }
         /*
         https://github.com/mozilla/pdf.js/commit/bd05b255fabfc313b194bfe9a17ccded4d90fb5a
