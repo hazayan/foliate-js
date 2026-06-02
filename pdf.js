@@ -101,11 +101,6 @@ const recolorWhitePage = async (canvas, background, isCurrent) => {
     if (!rgb) return
 
     await nextFrame()
-    await nextFrame()
-    if (!isCurrent()) return
-
-    blendWhitePage(canvas, background)
-    await nextFrame()
     if (!isCurrent()) return
 
     const context = canvas.getContext('2d', { willReadFrequently: true })
@@ -150,6 +145,7 @@ const render = async (page, doc, zoom, appearance) => {
     await page.render({ canvasContext, viewport, background, pageColors }).promise
     if (doc._pdfRenderKey !== renderKey) return
     canvas.style.background = background ?? ''
+    if (background && background !== '#ffffff') blendWhitePage(canvas, background)
     const canvasHost = doc.querySelector('#canvas')
     if (background) canvasHost.style.background = background
     canvasHost.replaceChildren(doc.adoptNode(canvas))

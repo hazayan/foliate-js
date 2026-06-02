@@ -47,9 +47,11 @@ export class FixedLayout extends HTMLElement {
     #flow
     #zoom
     #appearance
+    #appearanceVersion = 0
     #scrolledFrames
     #scrolledToken
     #scrolledBuild
+    #scrolledRenderFrame
     #unloadFrame(frame) {
         if (!frame || frame.blank) return
         frame.iframe?.removeAttribute('src')
@@ -93,7 +95,10 @@ export class FixedLayout extends HTMLElement {
 
         this.#observer.observe(this)
         this.addEventListener('scroll', () => {
-            if (this.scrolled) this.#reportScrolledLocation('scroll')
+            if (this.scrolled) {
+                this.#reportScrolledLocation('scroll')
+                this.#scheduleScrolledRender()
+            }
         })
     }
     attributeChangedCallback(name, _, value) {
@@ -187,14 +192,20 @@ export class FixedLayout extends HTMLElement {
             || 1
         return scale * this.#getZoomFactor()
     }
-    #transformFrame(frame, scale, display = 'block') {
+    #transformFrame(frame, scale, display = 'block', renderContent = true) {
         let { element, iframe, width, height, blank, onZoom } = frame
         if (!iframe) return
-        if (onZoom) onZoom({
-            doc: frame.iframe.contentDocument,
-            scale,
-            appearance: this.#appearance,
-        })
+        if (onZoom && renderContent) {
+            const renderKey = `${scale}:${this.#appearanceVersion}`
+            if (frame.renderKey !== renderKey) {
+                frame.renderKey = renderKey
+                onZoom({
+                    doc: frame.iframe.contentDocument,
+                    scale,
+                    appearance: this.#appearance,
+                })
+            }
+        }
         const iframeScale = onZoom ? scale : 1
         Object.assign(iframe.style, {
             width: `${width * iframeScale}px`,
@@ -214,7 +225,7 @@ export class FixedLayout extends HTMLElement {
     }
     #render(side = this.#side) {
         if (this.scrolled) {
-            this.#renderScrolled()
+            this.#scheduleScrolledRender()
             return
         }
         if (!side) return
@@ -247,8 +258,22 @@ export class FixedLayout extends HTMLElement {
         const width = Math.max(1, this.clientWidth - 32)
         for (const frame of this.#scrolledFrames) {
             const scale = this.#getScale(frame, width, this.clientHeight)
-            this.#transformFrame(frame, scale)
+            this.#transformFrame(frame, scale, 'block', this.#isFrameNearViewport(frame))
         }
+    }
+    #isFrameNearViewport(frame) {
+        if (!frame?.element?.isConnected) return false
+        const rect = frame.element.getBoundingClientRect()
+        const root = this.getBoundingClientRect()
+        const margin = Math.max(root.height, this.clientHeight || 0)
+        return rect.bottom >= root.top - margin && rect.top <= root.bottom + margin
+    }
+    #scheduleScrolledRender() {
+        if (this.#scrolledRenderFrame) return
+        this.#scrolledRenderFrame = requestAnimationFrame(() => {
+            this.#scrolledRenderFrame = null
+            this.#renderScrolled()
+        })
     }
     async #showScrolled(targetIndex = 0) {
         if (!this.book || this.#scrolledFrames) {
@@ -403,6 +428,7 @@ export class FixedLayout extends HTMLElement {
     }
     setAppearance(appearance) {
         this.#appearance = appearance
+        this.#appearanceVersion++
         this.#render()
     }
     get index() {
@@ -510,6 +536,8 @@ export class FixedLayout extends HTMLElement {
     destroy() {
         this.#observer.unobserve(this)
         this.#scrolledToken = null
+        if (this.#scrolledRenderFrame) cancelAnimationFrame(this.#scrolledRenderFrame)
+        this.#scrolledRenderFrame = null
         this.#unloadFrames()
         this.#root.replaceChildren()
         this.book = null
