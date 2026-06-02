@@ -151,6 +151,10 @@ export class FixedLayout extends HTMLElement {
     get scrolled() {
         return this.#flow === 'scrolled'
     }
+    #getZoomFactor() {
+        const value = parseFloat(getComputedStyle(this).getPropertyValue('--pdf-font-scale'))
+        return value && !isNaN(value) ? value : 1
+    }
     #getScale(frame, width = this.clientWidth, height = this.clientHeight) {
         const maxCols = parseInt(this.getAttribute('max-column-count'))
         const portrait = maxCols === 1
@@ -161,7 +165,7 @@ export class FixedLayout extends HTMLElement {
         const blankWidth = left.width ?? right.width ?? frame?.width ?? 0
         const blankHeight = left.height ?? right.height ?? frame?.height ?? 0
 
-        return typeof this.#zoom === 'number' && !isNaN(this.#zoom)
+        const scale = typeof this.#zoom === 'number' && !isNaN(this.#zoom)
             ? this.#zoom
             : this.#zoom === 'fit-width'
                 ? this.scrolled
@@ -181,6 +185,7 @@ export class FixedLayout extends HTMLElement {
                                 left.height ?? blankHeight,
                                 right.height ?? blankHeight)))
             || 1
+        return scale * this.#getZoomFactor()
     }
     #transformFrame(frame, scale, display = 'block') {
         let { element, iframe, width, height, blank, onZoom } = frame
